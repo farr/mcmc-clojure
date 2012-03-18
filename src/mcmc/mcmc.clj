@@ -55,8 +55,15 @@ with the default seeding procedure)."
              (mcmc-seq init (log-likelihood init) (log-prior init) jump log-jump-prob)))))))
 
 (defn make-affine-sampler
-  "Returns an affine-invariant sampler, following Goodman, J. & Weare,
-  J., 2010, Comm. App. Math. Comp. Sci., 5, 65."
+  "Returns an affine-invariant ensemble sampler, following Goodman, J. & Weare,
+  J., 2010, Comm. App. Math. Comp. Sci., 5, 65 and Foreman-Mackey, et
+  al (2012), arXiv:1202.3665.  The arguments should be log-likelihood
+  and log-prior of an individual state of the ensemble and an optional
+  RandomGenerator to be used to propose the moves.  The sampler takes
+  the form (fn [init-ensemble] <lazy-sequence of ensembles>).  Each
+  state in the ensemble should be a double-array, since the states
+  must live in R^n for the 'stretch moves' to work.  The ensemble
+  itself can be any collection of these double-array's."
   ([log-likelihood log-prior]
      (make-affine-sampler log-likelihood log-prior (Well44497b.)))
   ([log-likelihood log-prior ^RandomGenerator rng]
