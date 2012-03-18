@@ -53,3 +53,62 @@ with the default seeding procedure)."
                               (lazy-seq
                                (cons current (mcmc-seq next ll lp jumps log-jump-probs)))))]
              (mcmc-seq init (log-likelihood init) (log-prior init) jump log-jump-prob)))))))
+
+(defn make-affine-sampler
+  "Returns an affine-invariant sampler, following Goodman, J. & Weare,
+  J., 2010, Comm. App. Math. Comp. Sci., 5, 65."
+  ([log-likelihood log-prior]
+     (make-affine-sampler log-likelihood log-prior (Well44497b.)))
+  ([log-likelihood log-prior ^RandomGenerator rng]
+     (letfn [(samples-seq [samples lls lps rngs]
+               (let [n (count samples)
+                     n-split (int (/ n 2))
+                     [samples1 samples2] (split-at n-split samples)
+                     [lls1 lls2] (split-at n-split lls)
+                     [lps1 lps2] (split-at n-split lps)
+                     [rngs1 rngs2] (split-at n-split rngs)
+                     samples1 (vec samples1)
+                     samples2 (vec samples2)]
+                 (assert (seq samples1) "Error: no samples in subset 1!")
+                 (assert (seq samples2) "Error: no samples in subset 2!")
+                 (letfn [(draw-new-state [state ll lp ^RandomGenerator rng draw-samples]
+                           (let [u (.nextDouble rng)
+                                 z (* (double 0.5)
+                                      (+ (double 1.0)
+                                         (+ (* (double 2.0) u)
+                                            (* u u))))
+                                 state (doubles state)
+                                 other (doubles (get draw-samples (.nextInt rng (count draw-samples))))
+                                 new-state (doubles
+                                            (amap state i ret
+                                                  (+ (aget other i)
+                                                     (* z (- (aget state i) (aget other i))))))
+                                 n (alength new-state)
+                                 ll (double ll)
+                                 lp (double lp)
+                                 new-ll (double (log-likelihood new-state))
+                                 new-lp (double (log-prior new-state))
+                                 accept-p (- (+ new-ll new-lp)
+                                             (+ ll lp))
+                                 accept-p (+ accept-p (* (- n (int 1)) (Math/log z)))]
+                             (if (< (Math/log (.nextDouble rng)) accept-p)
+                               [new-state new-ll new-lp]
+                               [state ll lp])))]
+                   (let [new-states-ll-lp1 (pmap (fn [state ll lp rng]
+                                                   (draw-new-state state ll lp rng samples2))
+                                                 samples1 lls1 lps1 rngs1)
+                         samples1 (vec (map #(get % 0) new-states-ll-lp1))
+                         new-states-ll-lp2 (pmap (fn [state ll lp rng]
+                                                   (draw-new-state state ll lp rng samples1))
+                                                 samples2 lls2 lps2 rngs2)
+                         samples (concat samples1 (map #(get % 0) new-states-ll-lp2))
+                         lls (concat (map #(get % 1) new-states-ll-lp1)
+                                     (map #(get % 1) new-states-ll-lp2))
+                         lps (concat (map #(get % 2) new-states-ll-lp1)
+                                     (map #(get % 2) new-states-ll-lp2))]
+                     (lazy-seq (cons samples (samples-seq samples lls lps rngs)))))))]
+       (fn [init-samples]
+         (samples-seq init-samples
+                      (map log-likelihood init-samples)
+                      (map log-prior init-samples)
+                      (map (fn [samp] (Well44497b. (.nextInt rng))) init-samples))))))

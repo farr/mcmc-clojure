@@ -61,3 +61,33 @@
             (println x)))))
     (is (close? (mean samples) mu {:epsabs (* 6.0 (/ sigma (Math/sqrt (count samples)))) :epsrel 0.0}))
     (is (close? (std samples) sigma {:epsabs (* 12.0 (/ sigma (Math/sqrt (count samples)))) :epsrel 0.0}))))
+
+(deftest affine-ensemble-test
+  (let [eps (double 1e-2)
+        rng (Well44497b.)
+        n-state 1000]
+    (letfn [(log-likelihood [state]
+              (let [state (doubles state)
+                    x (aget state 0)
+                    y (aget state 1)
+                    d (- x y)]
+                (- (/ (* d d)
+                      (* (double 2.0) (* eps eps))))))
+            (log-prior [state]
+              (let [state (doubles state)
+                    x (aget state 0)
+                    y (aget state 1)
+                    d (+ x y)]
+                (- (/ (* d d) (double 2.0)))))]
+      (let [samples
+            ((make-affine-sampler log-likelihood log-prior rng)
+             (repeatedly n-state (fn [] (double-array [(.nextGaussian rng) (.nextGaussian rng)]))))
+            samp (nth samples 1000)
+            large-mean (mean (map #(+ (aget (doubles %) 0) (aget (doubles %) 1)) samp))
+            small-mean (mean (map #(- (aget (doubles %) 0) (aget (doubles %) 1)) samp))
+            large-sigma (std (map #(+ (aget (doubles %) 0) (aget (doubles %) 1)) samp))
+            small-sigma (std (map #(- (aget (doubles %) 0) (aget (doubles %) 1)) samp))]
+        (is (close? large-mean 0.0 {:epsabs (/ 3.0 (Math/sqrt n-state))}))
+        (is (close? large-sigma 1.0 {:epsabs (/ 6.0 (Math/sqrt n-state))}))
+        (is (close? small-mean 0.0 {:epsabs (/ (* 3.0 eps) (Math/sqrt n-state))}))
+        (is (close? small-sigma eps {:epsabs (/ (* 6.0 eps) (Math/sqrt n-state))}))))))
