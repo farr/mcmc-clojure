@@ -1,9 +1,11 @@
 # mcmc
 
-Markov Chain Monte Carlo libraries and related functions.
+Markov Chain Monte Carlo libraries and related functions.  Includes a
+(parallelized) implementation of the http://danfm.ca/emcee/
+affine-invariant sampler.
 
 ## License
 
-Copyright (C) 2012 FIXME
+Copyright (C) 2012 Will M. Farr <w-farr@northwestern.edu>
 
 Distributed under the Eclipse Public License, the same as Clojure.
